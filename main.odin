@@ -1,0 +1,31 @@
+package path_tracer
+
+import "base:runtime"
+import "core:log"
+import "core:mem"
+
+g_context: runtime.Context
+
+main :: proc() {
+  context.logger = log.create_console_logger(.Debug when ODIN_DEBUG else .Info)
+  defer log.destroy_console_logger(context.logger)
+
+  when ODIN_DEBUG {
+    tracking_allocator: mem.Tracking_Allocator
+    mem.tracking_allocator_init(&tracking_allocator, context.allocator)
+    context.allocator = mem.tracking_allocator(&tracking_allocator)
+    defer {
+      if len(tracking_allocator.allocation_map) > 0 {
+        log.warnf("MEMORY LEAK: %v allocations not freed:", len(tracking_allocator.allocation_map))
+        for _, entry in tracking_allocator.allocation_map {
+          log.warnf("- %v bytes at %v", entry.size, entry.location)
+        }
+      }
+      mem.tracking_allocator_destroy(&tracking_allocator)
+    }
+  }
+
+  g_context = context
+
+  log.infof("Hello World!")
+}
