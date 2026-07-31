@@ -6,11 +6,15 @@ import "core:mem"
 import "core:c"
 import "vendor:glfw"
 import gl "vendor:OpenGL"
+import "vendor/imgui"
+import "vendor/imgui/imgui_impl_glfw"
+import "vendor/imgui/imgui_impl_opengl3"
 
 g_context: runtime.Context
 
 GL_VERSION_MAJOR :: 4
 GL_VERSION_MINOR :: 6
+IMGUI_UI_SCALE :: 1.3
 
 glfw_error_callback :: proc "c" (error: c.int, description: cstring) {
   context = g_context
@@ -65,10 +69,51 @@ main :: proc() {
 
   glfw.SetKeyCallback(window, glfw_key_callback)
 
+  imgui.CHECKVERSION()
+  imgui.CreateContext()
+
+  {
+    imgui_io := imgui.GetIO()
+    imgui_io.ConfigFlags += { .DockingEnable, .ViewportsEnable }
+
+    imgui_style := imgui.GetStyle()
+    imgui.Style_ScaleAllSizes(imgui_style, IMGUI_UI_SCALE)
+    imgui_style.FontScaleDpi = IMGUI_UI_SCALE
+  }
+
+  imgui_impl_glfw.InitForOpenGL(window, install_callbacks = true)
+  imgui_impl_opengl3.Init("#version 430 core")
+
+  defer {
+    imgui_impl_opengl3.Shutdown()
+    imgui_impl_glfw.Shutdown()
+    imgui.DestroyContext()
+  }
+
   free_all(context.temp_allocator)
 
   for !glfw.WindowShouldClose(window) {
     glfw.PollEvents()
+
+    gl.ClearColor(0, 0, 0, 1)
+    gl.Clear(gl.COLOR_BUFFER_BIT)
+
+    imgui_impl_opengl3.NewFrame()
+    imgui_impl_glfw.NewFrame()
+    imgui.NewFrame()
+    main_viewport := imgui.GetMainViewport()
+    imgui.DockSpaceOverViewport(imgui.GetID("Main window dock space"), main_viewport, { .PassthruCentralNode })
+
+    imgui.ShowDemoWindow()
+
+    imgui.Render()
+    imgui_impl_opengl3.RenderDrawData(imgui.GetDrawData())
+    imgui.UpdatePlatformWindows()
+    imgui.RenderPlatformWindowsDefault()
+    glfw.MakeContextCurrent(window)
+
+    imgui.EndFrame()
+
     glfw.SwapBuffers(window)
     free_all(context.temp_allocator)
   }
